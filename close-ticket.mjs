@@ -54,14 +54,15 @@ export function createTicketCloser(workflow) {
         plannedFieldPresent: ticket.planned?.present, plannedHasContent: meaningful(ticket.planned?.value) });
       if (decision.startsWith('review_')) throw new Error(`需要检查: ${decision}`);
       const plannedChange = decision.startsWith('eligible_planned_');
-      if (decision !== 'eligible' && !plannedChange) {
+      const ordinaryBranch = decision.startsWith('eligible_ordinary_');
+      if (decision !== 'eligible' && !plannedChange && !ordinaryBranch) {
         return { id, outcome: decision === 'skip_finished' ? 'already_finished' : 'skipped',
           reason: decision, status: ticket.status, opened: true };
       }
       phase = 'fill';
       // Includes the mandatory wait for this Resolve action's AI completion toast.
       if (plannedChange) await workflow.fillPlannedResolution(id, decision);
-      else await workflow.fillResolution(id);
+      else await workflow.fillResolution(id, decision);
       if (!submit) {
         const screenshot = await workflow.capture(id, 'prepared');
         await workflow.log('prepared_not_submitted', { id });

@@ -22,6 +22,9 @@ planned:
 
 # 普通关单按 Subject 匹配，且计划事件分析字段为空。
 ordinary:
+  # 新增普通规则写在 branches 中，按顺序匹配 Subject，首个命中者优先。
+  # branches 为空时使用下方 subject 和 resolve。
+  branches: []
   subject:
     regex: '\d+F-V?SPOKE|\d+G-V?SPOKE|ADSL-ISP Down|INTERNET-[ABCD](?![A-Z0-9])'
     ignore_case: true

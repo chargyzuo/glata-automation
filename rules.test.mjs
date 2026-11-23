@@ -49,6 +49,39 @@ test('YAML 校验拒绝重复键、无效正则和空表单路径', () => {
   assert.deepEqual(getClosureConfig().resolveFor('eligible').reason, ['Network Alert', 'Network Issues']);
 });
 
+const extraOrdinaryRules = customRules.replace('\nplanned:', `
+  branches:
+    - id: internet
+      when: { contains_any: [INTERNET], ignore_case: true }
+      resolve:
+        tech_catalog: [Infrastructure, Server room equipment, UPS]
+        reason_of_alert: [Network Alert, Network Issues]
+    - id: internet_a
+      when: { contains_any: [INTERNET-A] }
+      resolve:
+        tech_catalog: [Network, WAN&Internet, internet]
+        reason_of_alert: [Network Alert, Network Issues]
+planned:`);
+
+test('新增普通分支按顺序选择独立动作，并支持原有单组配置', () => {
+  const config = parseClosureConfig(extraOrdinaryRules);
+  const ticket = { ...eligible, subject: 'internet-a_[Baseline-Net]-ISP Down' };
+  assert.equal(config.matchesSubject(ticket.subject), true);
+  assert.equal(decide(ticket, config), 'eligible_ordinary_internet');
+  assert.deepEqual(config.resolveFor('eligible_ordinary_internet').catalog, ['Infrastructure', 'Server room equipment', 'UPS']);
+  assert.equal(decide({ ...ticket, subject: 'DNSS packet loss' }, config), 'eligible');
+  assert.equal(decide({ ...ticket, subject: '其他告警' }, config), 'skip_subject');
+  assert.equal(decide({ ...ticket, planned: undefined }, config), 'review_unreadable_planned_field');
+  assert.equal(decide({ ...ticket, planned: { present: true, value: '其它分析内容' } }, config), 'skip_planned_event');
+  assert.equal(decide({ ...ticket, planned: { present: true, value: '相关计划事件，测试分类' } }, config), 'eligible_planned_custom');
+});
+
+test('新增普通分支也校验重复 ID、结构和选项路径', () => {
+  assert.throws(() => parseClosureConfig(extraOrdinaryRules.replace('id: internet_a', 'id: internet')), /id 重复/);
+  assert.throws(() => parseClosureConfig(extraOrdinaryRules.replace('  branches:\n    - id: internet', '  branches: null\n    - id: internet')));
+  assert.throws(() => parseClosureConfig(extraOrdinaryRules.replace('[Infrastructure, Server room equipment, UPS]', '[]')), /非空文本列表/);
+});
+
 test('跨页从实际列表末尾开始，先倒序再限制检查数量', () => {
   const pages = [['IT-1', 'IT-2'], ['IT-3', 'IT-4'], ['IT-5']];
   assert.deepEqual(reverseQueue(pages.flat(), 3), ['IT-5', 'IT-4', 'IT-3']);

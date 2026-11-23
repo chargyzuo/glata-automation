@@ -148,11 +148,34 @@ npm run ui
 | 配置项 | 用途 |
 | --- | --- |
 | `ordinary.subject` | 普通关单的 Subject 条件 |
+| `ordinary.branches[].when` | 额外的普通 Subject 条件，按书写顺序优先匹配 |
+| `ordinary.branches[].resolve` | 对应普通条件的独立表单选项 |
 | `planned.detect` | 计划变更检测条件，匹配计划事件分析正文 |
 | `planned.branches[].when` | 计划变更分类条件，匹配同一段分析正文 |
 | `resolve.tech_catalog`、`resolve.reason_of_alert` | 按菜单层级依次选择的选项 |
 
 每条匹配条件使用 `regex`（JavaScript 正则，填写表达式本身）或 `contains_any`（包含任一关键词），可设置 `ignore_case: true`。正则中的反斜杠可用 YAML 单引号原样保留。新增变更分类时，在 `planned.branches` 添加唯一的 `id`、`when` 和 `resolve`。任务模式决定是否提交 Confirm。
+
+### 新增普通条件和动作
+
+动作与现有普通规则相同时，可在 `ordinary.subject.regex` 中用 `|` 添加表达式。需要独立分类或原因时，将 `ordinary.branches: []` 替换为下面的列表，缩进与 `subject`、`resolve` 同级。
+
+```yaml
+  branches:
+    - id: new_alert
+      when:
+        contains_any: [新告警关键词]
+        ignore_case: true
+      resolve:
+        tech_catalog: [Infrastructure, Server room equipment, UPS]
+        reason_of_alert: [Network Alert, Network Issues]
+```
+
+示例中的关键词、Tech Catalog 和 Reason of Alert 请填写实际规则及页面上的完整选项名称。每增加一条普通规则，在列表中继续添加一个 `- id:` 项。也可将 `contains_any` 换为 `regex: '你的表达式'`。
+
+计划事件分支优先处理。普通分支按 `branches` 从上往下检查 Subject，采用第一条命中的动作，随后才使用 `ordinary.subject` 和 `ordinary.resolve` 作为默认普通规则。普通分支都要求计划事件分析为空，且通过现有状态和未恢复名单检查。提交前重新判断所属分支并核对表单。
+
+编辑后执行 `npm run check-rules`，再开始新的预演任务查看填写结果。
 
 1. 编号命中本轮 `Alarm_unrecovered` 快照时跳过。单号入口也读取这份快照，并额外检查详情中的 `Alert Status = Recovered`。
 2. 工单状态必须为 `In progress`。

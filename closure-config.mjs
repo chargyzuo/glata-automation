@@ -53,36 +53,47 @@ function resolution(value, at) {
   });
 }
 
+function parseBranches(values, group) {
+  if (!Array.isArray(values)) throw new Error(`${group}.branches 必须为列表`);
+  const decisions = new Set();
+  return Object.freeze(values.map((value, index) => {
+    const at = `${group}.branches[${index}]`;
+    const branch = record(value, ['id', 'when', 'resolve'], [], at);
+    if (typeof branch.id !== 'string' || !/^[a-z][a-z0-9_]*$/.test(branch.id)) {
+      throw new Error(`${at}.id 必须以小写英文字母开头，且只含小写字母、数字和下划线`);
+    }
+    const decision = `eligible_${group}_${branch.id}`;
+    if (decisions.has(decision)) throw new Error(`${at}.id 重复`);
+    decisions.add(decision);
+    return Object.freeze({ decision, matches: matcher(branch.when, at + '.when'),
+      resolve: resolution(branch.resolve, at + '.resolve') });
+  }));
+}
+
 export function parseClosureConfig(source) {
   const document = parseDocument(source);
   const issue = document.errors[0] ?? document.warnings[0];
   if (issue) throw issue;
   const root = record(document.toJS({ maxAliasCount: 0 }), ['version', 'ordinary', 'planned'], [], '配置');
   if (root.version !== 1) throw new Error('version 必须为 1');
-  const ordinary = record(root.ordinary, ['subject', 'resolve'], [], 'ordinary');
+  const ordinary = record(root.ordinary, ['subject', 'resolve'], ['branches'], 'ordinary');
   const planned = record(root.planned, ['detect', 'branches'], [], 'planned');
-  if (!Array.isArray(planned.branches)) throw new Error('planned.branches 必须为列表');
-  const decisions = new Set();
-  const branches = planned.branches.map((value, index) => {
-    const at = `planned.branches[${index}]`;
-    const branch = record(value, ['id', 'when', 'resolve'], [], at);
-    if (typeof branch.id !== 'string' || !/^[a-z][a-z0-9_]*$/.test(branch.id)) {
-      throw new Error(`${at}.id 必须以小写英文字母开头，且只含小写字母、数字和下划线`);
-    }
-    const decision = 'eligible_planned_' + branch.id;
-    if (decisions.has(decision)) throw new Error(`${at}.id 重复`);
-    decisions.add(decision);
-    return Object.freeze({ decision, matches: matcher(branch.when, at + '.when'),
-      resolve: resolution(branch.resolve, at + '.resolve') });
-  });
+  const branches = parseBranches(planned.branches, 'planned');
+  const ordinaryBranches = parseBranches(Object.hasOwn(ordinary, 'branches') ? ordinary.branches : [], 'ordinary');
+  const subjectMatches = matcher(ordinary.subject, 'ordinary.subject');
   const ordinaryResolution = resolution(ordinary.resolve, 'ordinary.resolve');
   return Object.freeze({
-    matchesSubject: matcher(ordinary.subject, 'ordinary.subject'),
+    matchesSubject: text => ordinaryBranches.some(branch => branch.matches(text)) || subjectMatches(text),
+    ordinaryDecision(text) {
+      const branch = ordinaryBranches.find(item => item.matches(text));
+      if (branch) return branch.decision;
+      return subjectMatches(text) ? 'eligible' : null;
+    },
     matchesPlannedEvent: matcher(planned.detect, 'planned.detect'),
     plannedBranches: Object.freeze(branches),
     resolveFor(decision) {
       if (decision === 'eligible') return ordinaryResolution;
-      const branch = branches.find(item => item.decision === decision);
+      const branch = [...ordinaryBranches, ...branches].find(item => item.decision === decision);
       if (!branch) throw new Error(`没有为 ${decision} 配置 Resolve 操作`);
       return branch.resolve;
     },
