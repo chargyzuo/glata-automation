@@ -2,18 +2,93 @@
 
 通过 Node.js 和 Playwright 操作 Glata 网页，支持串行关单、并发关单、按工单号关单和导出工单标题。脚本根据页面字段执行规则，Resolve 表单的 AI 填充由 Glata 触发。
 
-## 安装和登录
+## 部署教程
 
-需要 Node.js 20 或更高版本。
+在每位使用者自己的电脑上部署。网页控制台和自动化浏览器在同一台电脑运行，首次使用时会打开浏览器完成 Glata 登录。以下命令均从克隆后的项目目录执行。
+
+### 1. 准备环境和访问权限
+
+- 安装 Git、Node.js 20 或更高版本及 npm。可分别执行 `git --version`、`node --version` 和 `npm --version` 检查。
+- 此仓库为私有仓库。仓库管理员在 GitHub 的 Settings → Collaborators 中为同事授权，同事接受邀请后即可克隆。
+- 使用者的网络和账号需要能够访问 `glata.bytedance.net`，并具有查看目标视图、读取工单和执行 Resolve 的权限。需要公司网络或 VPN 时，先连接后再登录。
+- 电脑需要有桌面环境，以便在弹出的浏览器中完成飞书登录和检查预演表单。
+
+### 2. 克隆仓库
+
+在你希望存放项目的目录打开终端。如果已为自己的 GitHub 账号配置 SSH 公钥，执行以下命令。
 
 ```bash
-cd /Users/bytedance/Documents/Codex/2026-11-05/oral-english-practice/outputs/glata-automation
-npm install
+git clone git@github.com:chargyzuo/glata-automation.git
+cd glata-automation
+```
+
+也可以用 HTTPS 克隆，并按 GitHub 提示完成认证。
+
+```bash
+git clone https://github.com/chargyzuo/glata-automation.git
+cd glata-automation
+```
+
+### 3. 安装项目依赖和浏览器
+
+```bash
+npm ci
 npx playwright install chromium
+npm run check-rules
+```
+
+`npm ci` 根据仓库中的锁文件安装依赖，`playwright install` 安装脚本使用的 Chromium。Linux 桌面环境如果提示缺少浏览器系统依赖，可改用 `npx playwright install --with-deps chromium`，根据提示完成系统依赖安装。
+
+### 4. 启动网页控制台并首次登录
+
+```bash
+npm run ui
+```
+
+在同一台电脑的浏览器打开 [Glata 工单控制台](http://127.0.0.1:4317)，保留运行上述命令的终端窗口。
+
+1. 点击 **打开登录窗口**，在弹出的 Glata 浏览器中使用自己的账号完成飞书登录。
+2. 看到工单列表后，回到控制台点击 **已登录，保存会话**。
+3. 确认自己的账号可以访问 All Views 下的 `Alarm_unrecovered` 和 `Alarm_recovered`。检查视图中的负责人、状态等筛选项是否符合自己的处理范围。项目使用的视图名称和 ID 在 [views.mjs](./views.mjs) 中配置。
+4. 选择处理方式，先用默认的 **预演** 检查目标工单和填写结果。检查后点击 **结束预演**，后续需要提交时选择 **正式提交**。
+
+登录会话保存在当前项目目录的 `.browser-profile/`。每位同事在自己的电脑登录，后续启动复用该会话。会话过期时再次点击 **打开登录窗口**。网页和终端命令共用本地会话，同一份项目配置逐次运行任务。
+
+也可以在终端完成首次登录，然后按下文的命令运行。
+
+```bash
 npm run login
 ```
 
-在打开的浏览器中完成飞书登录，看到 Glata 工单列表后，回到终端按 Enter。登录保存在 `.browser-profile/`，各命令共用这份配置，请逐次运行。登录过期时重新执行 `npm run login`。
+在 Glata 窗口完成登录并看到工单列表后，回到终端按 Enter 保存。
+
+### 5. 后续启动和更新
+
+后续打开终端，进入自己克隆的 `glata-automation` 文件夹后执行 `npm run ui`。网页地址为 `http://127.0.0.1:4317`，任务结束后在终端按 Ctrl+C 可退出控制台。
+
+需要更新版本时，结束当前任务和控制台，在项目目录执行以下命令。若本地修改过规则，更新前先保留自己的改动。
+
+```bash
+git pull --ff-only
+npm ci
+npx playwright install chromium
+npm run check-rules
+npm run ui
+```
+
+代码根据项目文件所在位置定位配置、登录会话、日志和导出文件。项目可以克隆到自己选择的目录。
+
+### 部署常见问题
+
+| 提示或现象 | 处理方式 |
+| --- | --- |
+| `Repository not found` 或 `Permission denied (publickey)` | 确认已接受私有仓库邀请，SSH 公钥属于获授权的 GitHub 账号。也可使用 HTTPS 克隆并完成认证。 |
+| `ENOENT ... package.json` | 在克隆的 `glata-automation` 文件夹中打开终端后再运行 npm 命令。 |
+| 找不到 Chromium 或浏览器可执行文件 | 在项目目录运行 `npx playwright install chromium`。 |
+| 无法打开 Glata，或一直停在登录页面 | 检查公司网络或 VPN，使用自己的账号重新完成飞书登录。 |
+| 无法找到目标视图或执行 Resolve | 核对 Glata 账号权限、视图共享权限及 `views.mjs` 中的视图配置。 |
+| 端口 4317 已占用 | 先打开已有的控制台查看任务，任务结束后关闭旧进程，再启动。 |
+| 浏览器提示配置目录正在使用 | 结束使用同一份 `.browser-profile/` 的任务后，再开始下一次运行。 |
 
 ## 常用命令
 
@@ -136,4 +211,4 @@ const allAlarmNames = await extractAlarmSubjects(page, { viewName: 'Alarm' });
 
 `closeTicket` 接收 `{ submit: true }` 时正式提交。返回对象的 `outcome` 可能为 `prepared`、`resolved`、`already_finished` 或 `skipped`。关单阶段的异常可通过 `TicketClosureError` 的 `ticketId`、`phase` 和 `outcomeUnknown` 排查。`extractAlarmSubjects` 支持在已打开目标视图时传入 `navigate: false`。
 
-运行 `npm test` 执行回归测试，或用 `node --test concurrent.test.mjs` 单独检查调度规则。历史验证记录集中在项目上一级的 `CONTINUATION.md`。
+运行 `npm test` 执行回归测试，或用 `node --test concurrent.test.mjs` 单独检查调度规则。浏览器测试需要先完成部署教程中的依赖和 Chromium 安装。
