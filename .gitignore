@@ -1,0 +1,9 @@
+node_modules/
+.browser-profile/
+logs/
+artifacts/
+exports/
+.DS_Store
+.env
+.env.*
+!.env.example

@@ -1,0 +1,30 @@
+version: 1
+
+# 命中计划变更条件时，先按 planned.branches 分流。
+# 同时命中多个变更分支或没有命中任何分支时，跳过并汇总。
+planned:
+  detect:
+    regex: '(?<!不)存在一个相关的计划内事件'
+  branches:
+    - id: wan
+      when:
+        contains_any: [线路, 联通, 移动, 电信, 外线]
+      resolve:
+        tech_catalog: [Network, WAN&Internet, internet]
+        reason_of_alert: [Network Alert, Planned Events/Changes were not suppressed]
+    - id: ups
+      when:
+        contains_any: [电源, power, 电力]
+        ignore_case: true
+      resolve:
+        tech_catalog: [Infrastructure, Server room equipment, UPS]
+        reason_of_alert: [Network Alert, Planned Events/Changes were not suppressed]
+
+# 普通关单按 Subject 匹配，且计划事件分析字段为空。
+ordinary:
+  subject:
+    regex: '\d+F-V?SPOKE|\d+G-V?SPOKE|ADSL-ISP Down|INTERNET-[ABCD](?![A-Z0-9])'
+    ignore_case: true
+  resolve:
+    tech_catalog: [Network, WAN&Internet, internet]
+    reason_of_alert: [Network Alert, Network Issues]

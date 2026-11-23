@@ -1,0 +1,22 @@
+{
+  "name": "glata-dom-automation",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "ui": "node glata-ui.mjs",
+    "login": "node glata.mjs login",
+    "start": "node glata.mjs run",
+    "concurrent": "node glata-concurrent.mjs",
+    "close": "node glata.mjs close",
+    "subjects": "node glata.mjs subjects",
+    "check-rules": "node --input-type=module -e \"import { getClosureConfig } from './closure-config.mjs'; getClosureConfig(); console.log('closure-rules.yaml 校验通过')\"",
+    "test": "node --test rules.test.mjs ai-ready.test.mjs close-ticket.test.mjs alarm-subjects.test.mjs workflow-result.test.mjs resolve-menu.test.mjs dom-ready.test.mjs batch-snapshot.test.mjs concurrent.test.mjs concurrent-browser.test.mjs unrecovered.test.mjs archive/alert-status.test.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.56.0",
+    "yaml": "2.9.0"
+  }
+}

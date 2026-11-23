@@ -1,0 +1,44 @@
+:root {
+  color-scheme: light;
+  font: 16px/1.55 system-ui, sans-serif;
+  color: #1d2932;
+  background: #f3f6f7;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; }
+main { max-width: 52rem; margin: 0 auto; padding: 2.5rem 1rem; }
+header { margin-bottom: 1.5rem; }
+.eyebrow { color: #17655e; font-weight: 750; letter-spacing: .14em; font-size: .75rem; }
+h1 { margin: .15rem 0; font-size: 2.25rem; }
+h2 { margin: 0 0 .65rem; font-size: 1.15rem; }
+p { margin: .5rem 0; }
+.muted { color: #52626e; }
+section { background: white; border: 1px solid #dce4e8; border-radius: .8rem; padding: 1.25rem; margin-bottom: 1rem; }
+.actions, .activity { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
+.actions { margin-top: .8rem; }
+.activity { justify-content: space-between; margin-bottom: .65rem; }
+.activity h2 { margin: 0; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem 1rem; }
+label { font-weight: 600; }
+label .muted { font-weight: 400; }
+input, select, button { font: inherit; }
+input:not([type=checkbox]), select {
+  width: 100%; display: block; margin-top: .25rem; padding: .5rem .65rem;
+  border: 1px solid #b8c6cc; border-radius: .4rem; background: white; color: inherit;
+}
+.checkbox { display: block; margin-top: .8rem; }
+button { color: white; background: #17655e; padding: .55rem .85rem; border: 1px solid transparent; border-radius: .4rem; font-weight: 650; cursor: pointer; }
+button.secondary { background: #edf3f4; color: #164c47; }
+button.submit { background: #982f26; }
+button:disabled, fieldset:disabled button { opacity: .55; cursor: default; }
+:focus-visible { outline: 3px solid #238b80; outline-offset: 2px; }
+#mode-hint { margin: .85rem 0 .65rem; }
+#status { color: #175e56; background: #e7f4f0; border-radius: 1rem; padding: .15rem .65rem; font-size: .85rem; font-weight: 650; }
+#notice { color: #9a2b20; }
+#pause { background: #edf7f5; padding: .75rem; border-radius: .45rem; margin-bottom: .75rem; }
+#pause p { margin: 0 0 .5rem; }
+pre { background: #17232b; color: #e4edef; min-height: 8rem; max-height: 19rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; border-radius: .45rem; padding: .85rem; font: .84rem/1.5 ui-monospace, monospace; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+@media (max-width: 34rem) { main { padding-top: 1.5rem; } .grid { grid-template-columns: 1fr; } }

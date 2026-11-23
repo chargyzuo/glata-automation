@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glata 工单控制台</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">GLATA</p>
+      <h1>工单控制台</h1>
+      <p class="muted">登录、预演、关单和标题导出。</p>
+    </header>
+
+    <section aria-labelledby="session-title">
+      <h2 id="session-title">Glata 登录</h2>
+      <p class="muted">首次使用或会话过期时，打开登录窗口，在 Glata 页面完成飞书登录。看到工单列表后，回这里保存会话。</p>
+      <div class="actions">
+        <button type="button" id="login">打开登录窗口</button>
+        <button type="button" id="export" class="secondary">导出工单标题</button>
+      </div>
+    </section>
+
+    <section aria-labelledby="run-title">
+      <h2 id="run-title">关单设置</h2>
+      <form id="job-form">
+        <fieldset id="settings">
+          <legend class="sr-only">任务参数</legend>
+          <div class="grid">
+            <label>处理方式
+              <select id="action">
+                <option value="run">串行批量</option>
+                <option value="concurrent">并发批量</option>
+                <option value="close">按工单号</option>
+              </select>
+            </label>
+            <label>执行模式
+              <select id="mode">
+                <option value="preview">预演</option>
+                <option value="submit">正式提交</option>
+              </select>
+            </label>
+            <label id="workers-field" hidden>并发页面数
+              <input id="workers" type="number" min="1" step="1" value="2">
+            </label>
+            <label id="ticket-field">工单号 <span id="ticket-hint" class="muted">（可选）</span>
+              <input id="ticket" placeholder="IT-50773309" autocomplete="off" pattern="([Ii][Tt]-)?[1-9][0-9]*">
+            </label>
+            <label id="max-field">成功上限 <span class="muted">（可选）</span>
+              <input id="max" type="number" min="1" step="1" placeholder="不限">
+            </label>
+            <label id="scan-field">检查上限 <span class="muted">（可选）</span>
+              <input id="max-scan" type="number" min="1" step="1" placeholder="不限">
+            </label>
+          </div>
+          <label class="checkbox" id="headless-field" hidden>
+            <input id="headless" type="checkbox"> 后台运行浏览器
+          </label>
+          <p class="muted" id="mode-hint">预演会保留填好的表单供你检查。</p>
+          <button type="submit" id="run">开始预演</button>
+        </fieldset>
+      </form>
+    </section>
+
+    <section aria-labelledby="activity-title">
+      <div class="activity">
+        <h2 id="activity-title">运行记录</h2>
+        <span id="status" role="status">就绪</span>
+      </div>
+      <p id="notice" role="alert" hidden></p>
+      <div id="pause" hidden>
+        <p id="pause-hint"></p>
+        <button type="button" id="continue"></button>
+      </div>
+      <pre id="output" tabindex="0">任务日志会显示在这里。</pre>
+    </section>
+  </main>
+</body>
+</html>
