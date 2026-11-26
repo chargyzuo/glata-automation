@@ -19,6 +19,35 @@ test('批量从一次列表快照倒序打开，多单之间不再读取列表',
   const browser = await chromium.launch({ headless: true });
   const artifactDir = await mkdtemp(path.join(tmpdir(), 'glata-queue-test-'));
   try {
+    await t.test('背景资源持续加载时仍按目标工单 DOM 打开，串行与并发适用', async () => {
+      for (const source of ['direct', 'alarm']) {
+        const page = await browser.newPage();
+        page.setDefaultNavigationTimeout(1500);
+        let finishImage;
+        const imageDone = new Promise(resolve => { finishImage = resolve; });
+        try {
+          await page.route('**/blocked-image.png', async route => {
+            await imageDone;
+            await route.abort().catch(() => {});
+          });
+          await page.route('**/ens/engineer/ticketView?*', route => route.fulfill({
+            contentType: 'text/html',
+            body: '<div role="tabpanel" aria-label="Details">IT-3</div><img src="/blocked-image.png">',
+          }));
+          const workflow = createGlataWorkflow(page);
+          if (source === 'alarm') {
+            await page.setContent(listHTML);
+            await workflow.snapshotQueue();
+          }
+          assert.equal(await workflow.openTicket('IT-3', { source }), true);
+          await assert.rejects(page.waitForLoadState('load', { timeout: 200 }), /Timeout/);
+          assert.equal(await page.getByRole('tabpanel').innerText(), 'IT-3');
+        } finally {
+          finishImage();
+          await page.close();
+        }
+      }
+    });
     await t.test('保存完整名称列表，倒序后限制数量，并逐单直达详情', async () => {
       const page = await browser.newPage();
       const visits = [], events = [];

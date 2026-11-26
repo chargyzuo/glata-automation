@@ -135,7 +135,7 @@ export function createGlataWorkflow(page, { log = async () => {}, artifactDir = 
       if (!batchIds.has(id)) return false;
     }
     // Open the saved ID directly. Do not search or re-read the live list between tickets.
-    await page.goto(`${START}&seq=${id.replace(/^IT-/, '')}`);
+    await page.goto(`${START}&seq=${id.replace(/^IT-/, '')}`, { waitUntil: 'domcontentloaded' });
     await panel().getByText(id, { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
     return true;
   }
