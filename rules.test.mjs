@@ -88,6 +88,45 @@ test('新增普通分支也校验重复 ID、结构和选项路径', () => {
   assert.throws(() => parseClosureConfig(extraOrdinaryRules.replace('[Infrastructure, Server room equipment, UPS]', '[]')), /非空文本列表/);
 });
 
+test('普通分支可以匹配 Description，标题规则与计划事件检查仍生效', () => {
+  const source = extraOrdinaryRules
+    .replace('when: { contains_any: [INTERNET],', 'when: { field: description, contains_any: [INTERNET],')
+    .replace('when: { contains_any: [INTERNET-A] }', "when: { field: subject, regex: '^INTERNET-A' }");
+  const config = parseClosureConfig(source);
+  const ticket = { ...eligible, subject: 'INTERNET-A connection', description: 'internet circuit' };
+  assert.equal(decide(ticket, config), 'eligible_ordinary_internet');
+  assert.deepEqual(config.fieldsFor('eligible_ordinary_internet'), ['description']);
+  for (const description of [undefined, '', '—']) {
+    assert.equal(decide({ ...ticket, description }, config), 'eligible_ordinary_internet_a');
+  }
+  assert.equal(decide({ ...ticket, subject: 'Daily report' }, config), 'eligible_ordinary_internet');
+  assert.equal(decide({ ...ticket, planned: undefined }, config), 'review_unreadable_planned_field');
+  assert.equal(decide({ ...ticket, planned: { present: true, value: 'Other planned event' } }, config),
+    'skip_planned_event');
+  assert.equal(config.matchesSubject('INTERNET'), false);
+  assert.throws(() => parseClosureConfig(source.replace('field: description', 'field: summary')), /when.field/);
+});
+
+test('when.all 要求标题和 Description 全部命中才使用对应动作', () => {
+  const source = extraOrdinaryRules.replace(
+    'when: { contains_any: [INTERNET], ignore_case: true }', `when:
+        all:
+          - { field: subject, regex: '^Default Route is Changed', ignore_case: true }
+          - { field: description, contains_any: [ISP, Circuit], ignore_case: true }`,
+  );
+  const config = parseClosureConfig(source);
+  const decision = 'eligible_ordinary_internet';
+  const ticket = { ...eligible, subject: 'Default Route is Changed - HQ', description: 'New ISP gateway' };
+  assert.equal(decide(ticket, config), decision);
+  assert.deepEqual(config.resolveFor(decision).catalog, ['Infrastructure', 'Server room equipment', 'UPS']);
+  assert.deepEqual(config.fieldsFor(decision), ['subject', 'description']);
+  for (const changed of [{ subject: 'Daily report' }, { description: 'LAN refresh' }, { description: undefined }]) {
+    assert.equal(decide({ ...ticket, ...changed }, config), 'skip_subject');
+  }
+  assert.equal(config.matchesSubject(ticket.subject), false);
+  assert.throws(() => parseClosureConfig(source.replace(/all:\n[^\n]+\n[^\n]+/, 'all: []')), /all 必须为非空列表/);
+});
+
 test('跨页从实际列表末尾开始，先倒序再限制检查数量', () => {
   const pages = [['IT-1', 'IT-2'], ['IT-3', 'IT-4'], ['IT-5']];
   assert.deepEqual(reverseQueue(pages.flat(), 3), ['IT-5', 'IT-4', 'IT-3']);

@@ -2,6 +2,13 @@ import { normalize, normalizeTicketId, decide, meaningful, resolvedSuccessfully 
 import { createGlataWorkflow } from './workflow.mjs';
 import { isAlertRecovered } from './archive/alert-status.mjs';
 import { captureUnrecovered, withUnrecoveredGuard } from './unrecovered.mjs';
+import { getClosureConfig } from './closure-config.mjs';
+
+const matchFields = {
+  subject: 'Subject',
+  description: 'Description',
+  planned: 'Monisight AI Planned Event Analysis',
+};
 
 function decideForSource(ticket, source) {
   const decision = decide(ticket);
@@ -48,8 +55,12 @@ export function createTicketCloser(workflow) {
       const ticket = await workflow.readTicket(id, readOptions);
       if (ticket.id !== id) throw new Error('读取到的工单编号与请求不一致');
       const decision = decideForSource(ticket, source);
+      const fields = getClosureConfig().fieldsFor(decision);
+      const matchField = decision.startsWith('skip_planned_')
+        ? matchFields.planned
+        : fields.map(field => matchFields[field]).join(' + ') || null;
       await workflow.log('decision', { id, decision, status: ticket.status,
-        matchField: decision.includes('planned') ? 'Monisight AI Planned Event Analysis' : 'Subject',
+        matchField,
         ...(source === 'direct' ? { alertStatus: ticket.alertStatus } : {}),
         plannedFieldPresent: ticket.planned?.present, plannedHasContent: meaningful(ticket.planned?.value) });
       if (decision.startsWith('review_')) throw new Error(`需要检查: ${decision}`);

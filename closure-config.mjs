@@ -23,8 +23,8 @@ function textList(value, at) {
   return Object.freeze(value.map(item => item.trim()));
 }
 
-function matcher(value, at) {
-  const condition = record(value, [], ['regex', 'contains_any', 'ignore_case'], at);
+function matcher(value, at, extraKeys = []) {
+  const condition = record(value, [], ['regex', 'contains_any', 'ignore_case', ...extraKeys], at);
   const regex = Object.hasOwn(condition, 'regex');
   if (regex === Object.hasOwn(condition, 'contains_any')) {
     throw new Error(`${at} 必须且只能设置 regex 或 contains_any 其中一项`);
@@ -53,6 +53,26 @@ function resolution(value, at) {
   });
 }
 
+function ordinaryCondition(value, at) {
+  const combined = Object.hasOwn(value ?? {}, 'all');
+  const conditions = combined ? record(value, ['all'], [], at).all : [value];
+  if (!Array.isArray(conditions) || !conditions.length) throw new Error(`${at}.all 必须为非空列表`);
+
+  const checks = conditions.map((condition, index) => {
+    const path = combined ? `${at}.all[${index}]` : at;
+    const matches = matcher(condition, path, ['field']);
+    const field = Object.hasOwn(condition, 'field') ? condition.field : 'subject';
+    if (!['subject', 'description'].includes(field)) {
+      throw new Error(`${path}.field 必须为 subject 或 description`);
+    }
+    return { field, matches };
+  });
+  return {
+    fields: Object.freeze([...new Set(checks.map(check => check.field))]),
+    matches: fields => checks.every(check => fields[check.field] && check.matches(fields[check.field])),
+  };
+}
+
 function parseBranches(values, group) {
   if (!Array.isArray(values)) throw new Error(`${group}.branches 必须为列表`);
   const decisions = new Set();
@@ -65,7 +85,10 @@ function parseBranches(values, group) {
     const decision = `eligible_${group}_${branch.id}`;
     if (decisions.has(decision)) throw new Error(`${at}.id 重复`);
     decisions.add(decision);
-    return Object.freeze({ decision, matches: matcher(branch.when, at + '.when'),
+    const condition = group === 'ordinary'
+      ? ordinaryCondition(branch.when, at + '.when')
+      : { fields: Object.freeze(['planned']), matches: matcher(branch.when, at + '.when') };
+    return Object.freeze({ decision, ...condition,
       resolve: resolution(branch.resolve, at + '.resolve') });
   }));
 }
@@ -87,21 +110,27 @@ export function parseClosureConfig(source) {
   }
   const ordinaryBranches = hasBranches ? parseBranches(ordinary.branches, 'ordinary') : [];
   // Legacy configurations place the ordinary fallback outside the branch list.
+  const legacyMatch = hasSubject ? matcher(ordinary.subject, 'ordinary.subject') : null;
   const legacyBranch = hasSubject ? {
     decision: 'eligible',
-    matches: matcher(ordinary.subject, 'ordinary.subject'),
+    fields: Object.freeze(['subject']),
+    matches: ({ subject }) => Boolean(subject) && legacyMatch(subject),
     resolve: resolution(ordinary.resolve, 'ordinary.resolve'),
   } : null;
   const ordinaryRules = legacyBranch ? [...ordinaryBranches, legacyBranch] : ordinaryBranches;
   const allRules = [...ordinaryRules, ...branches];
-  function ordinaryDecision(text) {
-    return ordinaryRules.find(rule => rule.matches(text))?.decision ?? null;
+  function ordinaryDecision(subject, description = '') {
+    const fields = { subject, description };
+    return ordinaryRules.find(rule => rule.matches(fields))?.decision ?? null;
   }
   return Object.freeze({
     matchesSubject: text => ordinaryDecision(text) !== null,
     ordinaryDecision,
     matchesPlannedEvent: matcher(planned.detect, 'planned.detect'),
     plannedBranches: Object.freeze(branches),
+    fieldsFor(decision) {
+      return allRules.find(rule => rule.decision === decision)?.fields ?? [];
+    },
     resolveFor(decision) {
       const branch = allRules.find(item => item.decision === decision);
       if (!branch) throw new Error(`没有为 ${decision} 配置 Resolve 操作`);

@@ -39,7 +39,8 @@ export function decide(ticket, config = getClosureConfig()) {
     return matches[0]?.decision ?? 'skip_planned_unclassified';
   }
   if (!meaningful(ticket.subject)) return 'review_missing_subject';
-  const ordinaryDecision = config.ordinaryDecision(normalize(ticket.subject));
+  const description = meaningful(ticket.description) ? normalize(ticket.description) : '';
+  const ordinaryDecision = config.ordinaryDecision(normalize(ticket.subject), description);
   if (!ordinaryDecision) return 'skip_subject';
   if (ticket.planned === undefined) return 'review_unreadable_planned_field';
   if (ticket.planned.present && meaningful(ticket.planned.value)) return 'skip_planned_event';

@@ -147,7 +147,7 @@ npm run ui
 
 | 配置项 | 用途 |
 | --- | --- |
-| `ordinary.branches[].when` | 普通关单的 Subject 条件，按书写顺序匹配 |
+| `ordinary.branches[].when` | 通过 `field` 选择 `subject` 或 `description`，用 `all` 组合多个必须同时命中的条件 |
 | `ordinary.branches[].resolve` | 对应普通条件的独立表单选项 |
 | `planned.detect` | 计划变更检测条件，匹配计划事件分析正文 |
 | `planned.branches[].when` | 计划变更分类条件，匹配同一段分析正文 |
@@ -169,29 +169,34 @@ ordinary:
       resolve:
         tech_catalog: [Network, WAN&Internet, internet]
         reason_of_alert: [Network Alert, Network Issues]
-    - id: new_alert
+    - id: default_route_change
       when:
-        contains_any: [新告警关键词]
-        ignore_case: true
+        all:
+          - field: subject
+            regex: 'Default Route is Changed'
+            ignore_case: true
+          - field: description
+            contains_any: [正文关键词]
+            ignore_case: true
       resolve:
-        tech_catalog: [Infrastructure, Server room equipment, UPS]
+        tech_catalog: [Network, WAN&Internet, internet]
         reason_of_alert: [Network Alert, Network Issues]
 ```
 
-每个分支的 `id` 必须唯一。需要让同一个分支匹配更多标题时，可以在它的 `when.regex` 中用 `|` 追加表达式。
+每个分支的 `id` 必须唯一。上例要求标题匹配 `Default Route is Changed`，且 Description 包含指定关键词。`all` 内的每个条件都必须命中，Description 为空时不会命中正文条件。只匹配一个字段时，可以将 `field` 和 `regex` 或 `contains_any` 直接写在 `when` 下。省略 `field` 时匹配 Subject。
 
-计划事件分支优先处理。普通分支按 `ordinary.branches` 从上往下检查 Subject，使用第一条命中的 `resolve`。普通分支都要求计划事件分析为空，且通过状态和未恢复名单检查。提交前重新判断所属分支并核对表单。
+计划事件分支优先处理。普通分支按 `ordinary.branches` 从上往下检查各自配置的字段，使用第一条命中的 `resolve`。普通分支都要求计划事件分析为空，且通过状态和未恢复名单检查。提交前重新读取工单并检查所属分支和表单选项。
 
 编辑后执行 `npm run check-rules`，再开始新的预演任务查看填写结果。
 
 1. 编号命中本轮 `Alarm_unrecovered` 快照时跳过。单号入口也读取这份快照，并额外检查详情中的 `Alert Status = Recovered`。
 2. 工单状态必须为 `In progress`。
-3. 若分析确认存在相关计划内事件，进入变更关单分支。普通关单使用当前详情页的完整 **Subject** 匹配 `ordinary.branches` 中的条件。
+3. 若分析确认存在相关计划内事件，进入变更关单分支。普通关单使用当前详情页的 Subject 或 Description 匹配 `ordinary.branches` 中的条件。
 4. 普通关单要求 `Monisight AI Planned Event Analysis` 缺失或为空。空白、零宽字符和纯横线也视为空。
 5. 打开 Resolve 后等待本次 `AI form filling completed` 提示，最长 120 秒。根据命中分支的 `resolve` 选择 Tech Catalog 和 Reason of Alert。
-6. 正式提交前复查当前标题、计划事件、工单状态、未恢复快照和表单选项。单号入口同时复查 Alert Status。Confirm 只尝试一次，以 `Resolved` 或 `Closed` 状态加有效的 `Resolved Date` 核验成功。
+6. 正式提交前复查当前分支条件、计划事件、工单状态、未恢复快照和表单选项。单号入口同时复查 Alert Status。Confirm 只尝试一次，以 `Resolved` 或 `Closed` 状态加有效的 `Resolved Date` 核验成功。
 
-标题条件只读取 Subject，因此正文中提到的关联告警不会触发匹配。比如 Subject 为 `DNSS Packet Loss` 的工单会因标题不匹配被跳过，即使它已恢复。
+Description 分支匹配的是整个字段，正文中提到的关联告警也可能命中。
 
 ### 变更关单
 
