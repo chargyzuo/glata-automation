@@ -145,7 +145,7 @@ export function createGlataWorkflow(page, { log = async () => {}, artifactDir = 
     await fillResolution(id, decision);
   }
 
-  async function fillResolution(id, decision = 'eligible') {
+  async function fillResolution(id, decision) {
     const { catalog, reason } = getClosureConfig().resolveFor(decision);
     const { action: resolveAction, openedBy } = await openResolveMenu(page);
     await log('resolve_menu_opened', { id, openedBy });
@@ -200,7 +200,7 @@ export function createGlataWorkflow(page, { log = async () => {}, artifactDir = 
     await verifyResolution(decision);
   }
 
-  async function verifyResolution(decision = 'eligible') {
+  async function verifyResolution(decision) {
     const { catalog, reason } = getClosureConfig().resolveFor(decision);
     await dialog().getByText(catalog.join(' > '), { exact: true }).waitFor({ state: 'visible' });
     await dialog().getByText(reason.join(' > '), { exact: true }).waitFor({ state: 'visible' });

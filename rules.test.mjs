@@ -46,7 +46,10 @@ test('YAML 校验拒绝重复键、无效正则和空表单路径', () => {
   assert.throws(() => parseClosureConfig(customRules.replace('[Network Alert, Network Issues]', '[]')), /非空文本列表/);
   assert.deepEqual(getClosureConfig().resolveFor('eligible_planned_wan').catalog, ['Network', 'WAN&Internet', 'internet']);
   assert.deepEqual(getClosureConfig().resolveFor('eligible_planned_ups').catalog, ['Infrastructure', 'Server room equipment', 'UPS']);
-  assert.deepEqual(getClosureConfig().resolveFor('eligible').reason, ['Network Alert', 'Network Issues']);
+  assert.deepEqual(getClosureConfig().resolveFor('eligible_ordinary_network'), {
+    catalog: ['Network', 'WAN&Internet', 'internet'],
+    reason: ['Network Alert', 'Network Issues'],
+  });
 });
 
 const extraOrdinaryRules = customRules.replace('\nplanned:', `
@@ -64,12 +67,15 @@ const extraOrdinaryRules = customRules.replace('\nplanned:', `
 planned:`);
 
 test('新增普通分支按顺序选择独立动作，并支持原有单组配置', () => {
-  const config = parseClosureConfig(extraOrdinaryRules);
+  const config = parseClosureConfig(extraOrdinaryRules.replace(
+    /\n  subject:[\s\S]*?(?=\n  branches:)/, '',
+  ));
   const ticket = { ...eligible, subject: 'internet-a_[Baseline-Net]-ISP Down' };
   assert.equal(config.matchesSubject(ticket.subject), true);
   assert.equal(decide(ticket, config), 'eligible_ordinary_internet');
   assert.deepEqual(config.resolveFor('eligible_ordinary_internet').catalog, ['Infrastructure', 'Server room equipment', 'UPS']);
-  assert.equal(decide({ ...ticket, subject: 'DNSS packet loss' }, config), 'eligible');
+  assert.equal(decide({ ...ticket, subject: 'DNSS packet loss' }, config), 'skip_subject');
+  assert.equal(decide({ ...ticket, subject: 'DNSS packet loss' }, parseClosureConfig(extraOrdinaryRules)), 'eligible');
   assert.equal(decide({ ...ticket, subject: '其他告警' }, config), 'skip_subject');
   assert.equal(decide({ ...ticket, planned: undefined }, config), 'review_unreadable_planned_field');
   assert.equal(decide({ ...ticket, planned: { present: true, value: '其它分析内容' } }, config), 'skip_planned_event');
@@ -91,15 +97,17 @@ test('跨页从实际列表末尾开始，先倒序再限制检查数量', () =>
 });
 
 test('Subject 中的 SPOKE 和 VSPOKE 均满足标题规则', () => {
-  assert.equal(decide(eligible), 'eligible');
+  assert.equal(decide(eligible), 'eligible_ordinary_network');
   for (const subject of [
     'CNXIY16-F11-M-121G-SPOKE01',
+    'CNXIY16-F11-M-121F-SPOKE01',
+    'CNXIY16-F11-M-121F-VSPOKE01',
     'CNXIY16-F11-M-121G-VSPOKE:ISP-CM',
     '[Baseline-Net]-SDWAN-Fortinet Vspoke SLAs CNXIY18-F13-M-121G-VSPOKE:SD-WAN [HC_SZX13]:[SZX13-CT]',
     'CNDLC08-F07-M-121G-VSPOKE_[Baseline-Net]-SDWAN-Fortinet Vspoke Icmp Packet Loss Greater than 20%',
     'CNXIY17-F05-M-F121G-VSPOKE01',
     'cnxiy16-f11-m-121g-vspoke:isp-cm',
-  ]) assert.equal(decide({ ...eligible, subject }), 'eligible', subject);
+  ]) assert.equal(decide({ ...eligible, subject }), 'eligible_ordinary_network', subject);
   for (const subject of ['S5731-AVSW08', 'CNHFE06-F05-M-R450-GW01', '121G-NOTSPOKE', 'VSPOKE']) {
     assert.equal(decide({ ...eligible, subject }), 'skip_subject', subject);
   }
@@ -107,9 +115,9 @@ test('Subject 中的 SPOKE 和 VSPOKE 均满足标题规则', () => {
 
 test('SPOKE 和 VSPOKE 不再依赖恢复状态，但仍检查计划事件', () => {
   const vspoke = { ...eligible, subject: 'CNXIY16-F11-M-121G-VSPOKE:ISP-CM' };
-  assert.equal(decide(vspoke), 'eligible');
-  assert.equal(decide({ ...vspoke, alertStatus: 'Open' }), 'eligible');
-  assert.equal(decide({ ...eligible, alertStatus: 'Firing' }), 'eligible');
+  assert.equal(decide(vspoke), 'eligible_ordinary_network');
+  assert.equal(decide({ ...vspoke, alertStatus: 'Open' }), 'eligible_ordinary_network');
+  assert.equal(decide({ ...eligible, alertStatus: 'Firing' }), 'eligible_ordinary_network');
   assert.equal(decide({ ...vspoke, planned: { present: true, value: '相关计划事件 IT-50425247' } }), 'skip_planned_event');
 });
 
@@ -127,7 +135,7 @@ test('计划事件字段任何有效内容都会阻止普通 Network Issues 分�
 test('空富文本、空白和占位符按空内容处理，读取失败不按空处理', () => {
   for (const value of ['', ' \u200b\n\ufeff\u00a0 ', '--', '—']) {
     assert.equal(meaningful(value), false);
-    assert.equal(decide({ ...eligible, planned: { present: true, value } }), 'eligible');
+    assert.equal(decide({ ...eligible, planned: { present: true, value } }), 'eligible_ordinary_network');
   }
   assert.equal(decide({ ...eligible, planned: undefined }), 'review_unreadable_planned_field');
 });
@@ -145,7 +153,7 @@ test('新增 ADSL 和 INTERNET A/B/C/D 标题命中同一分支', () => {
     'internet-b: Circuit Traffic Utilization',
   ]) {
     assert.equal(matchesSubject(subject), true, subject);
-    assert.equal(decide({ ...eligible, subject }), 'eligible', subject);
+    assert.equal(decide({ ...eligible, subject }), 'eligible_ordinary_network', subject);
   }
   for (const subject of ['INTERNET-|', 'INTERNET-E', 'INTERNET-ADSL', 'INTERNET-A1', 'INTERNET-AB']) {
     assert.equal(matchesSubject(subject), false, subject);
@@ -156,7 +164,7 @@ test('仅 Description 中的关联告警命中时不进入分支，标题不能�
   const description = 'ADSL-ISP Down INTERNET-C 121G-VSPOKE';
   assert.equal(decide({ ...eligible, subject: 'R450-GW01_[Baseline-Net]-GW Tunnel Down', description }), 'skip_subject');
   assert.equal(decide({ ...eligible, subject: undefined, description }), 'review_missing_subject');
-  assert.equal(decide({ ...eligible, subject: 'INTERNET-D', description: '' }), 'eligible');
+  assert.equal(decide({ ...eligible, subject: 'INTERNET-D', description: '' }), 'eligible_ordinary_network');
 });
 
 test('默认是预演，提交必须显式指定', () => {

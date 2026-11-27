@@ -76,24 +76,34 @@ export function parseClosureConfig(source) {
   if (issue) throw issue;
   const root = record(document.toJS({ maxAliasCount: 0 }), ['version', 'ordinary', 'planned'], [], '配置');
   if (root.version !== 1) throw new Error('version 必须为 1');
-  const ordinary = record(root.ordinary, ['subject', 'resolve'], ['branches'], 'ordinary');
+  const ordinary = record(root.ordinary, [], ['branches', 'subject', 'resolve'], 'ordinary');
   const planned = record(root.planned, ['detect', 'branches'], [], 'planned');
   const branches = parseBranches(planned.branches, 'planned');
-  const ordinaryBranches = parseBranches(Object.hasOwn(ordinary, 'branches') ? ordinary.branches : [], 'ordinary');
-  const subjectMatches = matcher(ordinary.subject, 'ordinary.subject');
-  const ordinaryResolution = resolution(ordinary.resolve, 'ordinary.resolve');
+  const hasBranches = Object.hasOwn(ordinary, 'branches');
+  const hasSubject = Object.hasOwn(ordinary, 'subject');
+  const hasResolve = Object.hasOwn(ordinary, 'resolve');
+  if (hasSubject !== hasResolve || (!hasBranches && !hasSubject)) {
+    throw new Error('ordinary 需要 branches，或同时提供旧格式的 subject 与 resolve');
+  }
+  const ordinaryBranches = hasBranches ? parseBranches(ordinary.branches, 'ordinary') : [];
+  // Legacy configurations place the ordinary fallback outside the branch list.
+  const legacyBranch = hasSubject ? {
+    decision: 'eligible',
+    matches: matcher(ordinary.subject, 'ordinary.subject'),
+    resolve: resolution(ordinary.resolve, 'ordinary.resolve'),
+  } : null;
+  const ordinaryRules = legacyBranch ? [...ordinaryBranches, legacyBranch] : ordinaryBranches;
+  const allRules = [...ordinaryRules, ...branches];
+  function ordinaryDecision(text) {
+    return ordinaryRules.find(rule => rule.matches(text))?.decision ?? null;
+  }
   return Object.freeze({
-    matchesSubject: text => ordinaryBranches.some(branch => branch.matches(text)) || subjectMatches(text),
-    ordinaryDecision(text) {
-      const branch = ordinaryBranches.find(item => item.matches(text));
-      if (branch) return branch.decision;
-      return subjectMatches(text) ? 'eligible' : null;
-    },
+    matchesSubject: text => ordinaryDecision(text) !== null,
+    ordinaryDecision,
     matchesPlannedEvent: matcher(planned.detect, 'planned.detect'),
     plannedBranches: Object.freeze(branches),
     resolveFor(decision) {
-      if (decision === 'eligible') return ordinaryResolution;
-      const branch = [...ordinaryBranches, ...branches].find(item => item.decision === decision);
+      const branch = allRules.find(item => item.decision === decision);
       if (!branch) throw new Error(`没有为 ${decision} 配置 Resolve 操作`);
       return branch.resolve;
     },

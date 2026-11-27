@@ -147,8 +147,7 @@ npm run ui
 
 | 配置项 | 用途 |
 | --- | --- |
-| `ordinary.subject` | 普通关单的 Subject 条件 |
-| `ordinary.branches[].when` | 额外的普通 Subject 条件，按书写顺序优先匹配 |
+| `ordinary.branches[].when` | 普通关单的 Subject 条件，按书写顺序匹配 |
 | `ordinary.branches[].resolve` | 对应普通条件的独立表单选项 |
 | `planned.detect` | 计划变更检测条件，匹配计划事件分析正文 |
 | `planned.branches[].when` | 计划变更分类条件，匹配同一段分析正文 |
@@ -158,10 +157,18 @@ npm run ui
 
 ### 新增普通条件和动作
 
-动作与现有普通规则相同时，可在 `ordinary.subject.regex` 中用 `|` 添加表达式。需要独立分类或原因时，将 `ordinary.branches: []` 替换为下面的列表，缩进与 `subject`、`resolve` 同级。
+现有网络规则是 `ordinary.branches` 中的 `network` 分支。新增规则时，在同一列表中添加一个并列的 `- id:` 项。示例中的第二条只用于说明格式，填写时请替换为实际的关键词和完整下拉路径。
 
 ```yaml
+ordinary:
   branches:
+    - id: network
+      when:
+        regex: '\d+F-V?SPOKE|\d+G-V?SPOKE|ADSL-ISP Down|INTERNET-[ABCD](?![A-Z0-9])'
+        ignore_case: true
+      resolve:
+        tech_catalog: [Network, WAN&Internet, internet]
+        reason_of_alert: [Network Alert, Network Issues]
     - id: new_alert
       when:
         contains_any: [新告警关键词]
@@ -171,19 +178,17 @@ npm run ui
         reason_of_alert: [Network Alert, Network Issues]
 ```
 
-示例中的关键词、Tech Catalog 和 Reason of Alert 请填写实际规则及页面上的完整选项名称。每增加一条普通规则，在列表中继续添加一个 `- id:` 项。也可将 `contains_any` 换为 `regex: '你的表达式'`。
+每个分支的 `id` 必须唯一。需要让同一个分支匹配更多标题时，可以在它的 `when.regex` 中用 `|` 追加表达式。
 
-计划事件分支优先处理。普通分支按 `branches` 从上往下检查 Subject，采用第一条命中的动作，随后才使用 `ordinary.subject` 和 `ordinary.resolve` 作为默认普通规则。普通分支都要求计划事件分析为空，且通过现有状态和未恢复名单检查。提交前重新判断所属分支并核对表单。
+计划事件分支优先处理。普通分支按 `ordinary.branches` 从上往下检查 Subject，使用第一条命中的 `resolve`。普通分支都要求计划事件分析为空，且通过状态和未恢复名单检查。提交前重新判断所属分支并核对表单。
 
 编辑后执行 `npm run check-rules`，再开始新的预演任务查看填写结果。
 
 1. 编号命中本轮 `Alarm_unrecovered` 快照时跳过。单号入口也读取这份快照，并额外检查详情中的 `Alert Status = Recovered`。
 2. 工单状态必须为 `In progress`。
-3. 若分析确认存在相关计划内事件，进入下文的变更关单分支。普通关单使用当前详情页的完整 **Subject** 匹配下列任一表达式，忽略大小写。
-   - SPOKE 或 VSPOKE 使用 `/\d+G-V?SPOKE/i`。
-   - ADSL 或 INTERNET 使用 `/ADSL-ISP Down|INTERNET-[ABCD](?![A-Z0-9])/i`。例如 `INTERNET-A_` 命中，`INTERNET-ADSL` 和 `INTERNET-A1` 跳过。
+3. 若分析确认存在相关计划内事件，进入变更关单分支。普通关单使用当前详情页的完整 **Subject** 匹配 `ordinary.branches` 中的条件。
 4. 普通关单要求 `Monisight AI Planned Event Analysis` 缺失或为空。空白、零宽字符和纯横线也视为空。
-5. 打开 Resolve 后等待本次 `AI form filling completed` 提示，最长 120 秒。普通关单将 Tech Catalog 设为 `Network > WAN&Internet > internet`，将 Reason of Alert 设为 `Network Alert > Network Issues`。
+5. 打开 Resolve 后等待本次 `AI form filling completed` 提示，最长 120 秒。根据命中分支的 `resolve` 选择 Tech Catalog 和 Reason of Alert。
 6. 正式提交前复查当前标题、计划事件、工单状态、未恢复快照和表单选项。单号入口同时复查 Alert Status。Confirm 只尝试一次，以 `Resolved` 或 `Closed` 状态加有效的 `Resolved Date` 核验成功。
 
 标题条件只读取 Subject，因此正文中提到的关联告警不会触发匹配。比如 Subject 为 `DNSS Packet Loss` 的工单会因标题不匹配被跳过，即使它已恢复。
